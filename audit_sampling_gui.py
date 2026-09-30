@@ -13,7 +13,8 @@ with st.sidebar:
         "Sample Size (Cochran)",
         "Stratified Sampling",
         "Evaluate Error Rate",
-        "Max Allowed Errors (Binomial)"
+        "Max Allowed Errors (Binomial)",
+        "Methodology Statement"
     ])
 
 if calc_type == "Discovery Sampling":
@@ -123,3 +124,85 @@ elif calc_type == "Max Allowed Errors (Binomial)":
         else:
             min_n = ceil(log(alpha) / log(1 - p0))
             st.warning(f"This sample is too small: even 0 errors would not support that conclusion. Use at least {min_n} items (the discovery sample size).")
+
+elif calc_type == "Methodology Statement":
+    st.subheader("Methodology Statement")
+    st.caption("Statistical methods used by each calculator in this tool, for citation in audit workpapers.")
+
+    methodology_text = r"""# Audit Sampling Toolkit — Methodology Statement
+
+## Discovery Sampling
+
+**Plain language:** Finds the smallest sample size such that, if a deviation exists in the
+population at or above a stated rate, the sample has the chosen probability (confidence level)
+of containing at least one instance of it. The test assumes the sample must come back with
+**zero** errors in order to conclude the true rate is below the target.
+
+**Equation:**
+
+$$ n = \left\lceil \frac{\ln(\alpha)}{\ln(1 - p_0)} \right\rceil, \qquad \alpha = 1 - \text{confidence} $$
+
+## Sample Size (Cochran)
+
+**Plain language:** Estimates the sample size needed to estimate a proportion within a target
+margin of error, using the normal approximation to the binomial distribution. Applies a
+finite-population correction when a population size is supplied.
+
+**Equations:**
+
+$$ n_0 = \frac{z^2\, p(1-p)}{e^2} \qquad n = \frac{n_0}{1 + \dfrac{n_0 - 1}{N}}\ \text{(when } N \text{ is given)} $$
+
+where $z$ is the standard normal quantile for the chosen confidence level, $p$ is the estimated
+proportion, and $e$ is the target margin of error.
+
+## Stratified Sampling
+
+**Plain language:** Splits a total sample size across subgroups ("strata") of the population,
+either in proportion to each stratum's size, or (Neyman allocation) weighted toward strata with
+more internal variability, to get the most precision for a given total sample size.
+
+**Equations:**
+
+$$ \text{Proportional: } n_h = \frac{N_h}{N}\, n \qquad \text{Neyman: } n_h = \frac{N_h \sigma_h}{\sum_h N_h \sigma_h}\, n $$
+
+## Evaluate Error Rate
+
+**Plain language:** Given $x$ errors found in a sample of $n$ items, computes the range of
+population error rates consistent with that result, using the **exact (Clopper-Pearson)**
+binomial confidence interval rather than a normal approximation. The exact method stays valid
+with zero or very few errors, where the normal approximation collapses or understates the true
+upper limit. The "upper limit only" option reports just the upper bound, for sign-off decisions
+that only need to establish a ceiling on the error rate.
+
+**Equations:**
+
+Two-sided interval (with $\alpha = 1 - \text{confidence}$):
+
+$$ \text{Lower} = \begin{cases} 0 & x = 0 \\ B^{-1}\!\left(\tfrac{\alpha}{2};\, x,\, n-x+1\right) & x > 0 \end{cases} \qquad \text{Upper} = \begin{cases} 1 & x = n \\ B^{-1}\!\left(1-\tfrac{\alpha}{2};\, x+1,\, n-x\right) & x < n \end{cases} $$
+
+One-sided upper limit:
+
+$$ \text{Upper} = \begin{cases} 1 & x = n \\ B^{-1}\!\left(\text{confidence};\, x+1,\, n-x\right) & x < n \end{cases} $$
+
+where $B^{-1}(q;\, a,\, b)$ is the inverse CDF (quantile function) of the Beta distribution.
+
+## Max Allowed Errors (Binomial)
+
+**Plain language:** For a given sample size and a tolerable error rate $p_0$, finds the
+**acceptance number** — the largest number of errors that could be found in the sample while
+still supporting the conclusion, at the chosen confidence level, that the true error rate is at
+or below $p_0$. If even zero errors would not support that conclusion, the sample size is too
+small for the target rate and confidence level.
+
+**Equation:**
+
+$$ x^* = \max\{\, x : P(X \le x \mid n, p_0) \le \alpha \,\}, \qquad X \sim \text{Binomial}(n, p_0), \quad \alpha = 1 - \text{confidence} $$
+"""
+
+    st.markdown(methodology_text)
+    st.download_button(
+        "Download methodology statement (Markdown)",
+        data=methodology_text,
+        file_name="audit_sampling_methodology.md",
+        mime="text/markdown"
+    )

@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from math import ceil, log, sqrt
+from math import ceil, log
 from scipy.stats import norm, binom, beta
 
 st.set_page_config(page_title="Audit Sampling Calculator", layout="centered")

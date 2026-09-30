@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 from math import ceil, log, sqrt
-from scipy.stats import norm, binom
+from scipy.stats import norm, binom, beta
 
 st.set_page_config(page_title="Audit Sampling Calculator", layout="centered")
 st.title("📊 Audit Sampling & Evaluation Toolkit")
@@ -76,20 +76,30 @@ elif calc_type == "Evaluate Error Rate":
     st.subheader("Error Rate Confidence Interval")
     n = st.number_input("Sample Size (n)", min_value=1)
     x = st.number_input("Number of Errors Found (x)", min_value=0)
-    N = st.number_input("Population Size (optional)", min_value=0, value=0)
     confidence = st.slider("Confidence Level", 0.8, 0.999, 0.95)
+    limit = st.radio("Limit", ["Two-sided (lower and upper)", "Upper limit only"])
 
     if st.button("Estimate Error Rate CI"):
-        p_hat = x / n
-        z = norm.ppf(1 - (1 - confidence) / 2)
-        se = sqrt(p_hat * (1 - p_hat) / n)
-        if N > n:
-            se *= sqrt((N - n) / (N - 1))
-        margin = z * se
-        ci_lower = max(0, round(p_hat - margin, 4))
-        ci_upper = min(1, round(p_hat + margin, 4))
-        st.success(f"Observed Error Rate: {round(p_hat, 4)}")
-        st.info(f"{int(confidence*100)}% CI: ({ci_lower}, {ci_upper}) ± {round(margin, 4)}")
+        if x > n:
+            st.error("Errors found cannot exceed the sample size.")
+        else:
+            # Exact (Clopper-Pearson) binomial limits: valid with zero or few errors,
+            # where the normal approximation collapses or understates the upper limit.
+            p_hat = x / n
+            if limit.startswith("Upper"):
+                ci_lower = 0.0
+                ci_upper = 1.0 if x == n else beta.ppf(confidence, x + 1, n - x)
+                label = f"{int(confidence*100)}% upper limit"
+            else:
+                a = 1 - confidence
+                ci_lower = 0.0 if x == 0 else beta.ppf(a / 2, x, n - x + 1)
+                ci_upper = 1.0 if x == n else beta.ppf(1 - a / 2, x + 1, n - x)
+                label = f"{int(confidence*100)}% CI"
+            st.success(f"Observed Error Rate: {p_hat:.2%}")
+            if limit.startswith("Upper"):
+                st.info(f"{label}: error rate is at most {ci_upper:.2%}")
+            else:
+                st.info(f"{label}: {ci_lower:.2%} to {ci_upper:.2%}")
 
 elif calc_type == "Max Allowed Errors (Binomial)":
     st.subheader("Max Errors Allowed for Given Sample Size")
@@ -99,12 +109,17 @@ elif calc_type == "Max Allowed Errors (Binomial)":
     alpha = 1 - confidence
 
     if st.button("Compute Max Allowed Errors"):
+        # Acceptance number: the largest error count x where, if the true error rate
+        # were p0, seeing x or fewer errors would happen no more than alpha of the time.
+        # Finding x or fewer errors then supports "error rate <= p0" at this confidence.
         max_errors = None
         for x in range(n + 1):
-            if binom.cdf(x, n, p0) >= 1 - alpha:
+            if binom.cdf(x, n, p0) <= alpha:
                 max_errors = x
+            else:
                 break
         if max_errors is not None:
-            st.success(f"You may observe up to **{max_errors}** errors and still conclude error rate ≤ {p0:.2f} with {int(confidence*100)}% confidence.")
+            st.success(f"You may observe up to **{max_errors}** errors and still conclude error rate ≤ {p0:.2%} with {int(confidence*100)}% confidence.")
         else:
-            st.warning("No valid error threshold found. Try increasing sample size or adjusting error rate.")
+            min_n = ceil(log(alpha) / log(1 - p0))
+            st.warning(f"This sample is too small: even 0 errors would not support that conclusion. Use at least {min_n} items (the discovery sample size).")
